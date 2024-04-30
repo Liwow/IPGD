@@ -1,6 +1,6 @@
 import argparse
 import os
-import pickle
+from utils import RoundSTE
 import sys
 from cvae import CVAE
 import torch
@@ -13,8 +13,11 @@ import data_utils
 import diffusion
 from decoder import SolutionDecoder
 from cisp import CISP
-from pretrain import lr_lambda
 from tqdm import tqdm
+
+
+def lr_lambda(epoch):
+    return 0.9 ** ((epoch + 1) // 15)
 
 
 def set_model_to_mode(model, mode):
@@ -72,16 +75,17 @@ def forward_by_cisp(mip, x, model, checkpoint=None):
     sols = decoder(zi, zx_start, key)
 
     loss_decoder = F.binary_cross_entropy(sols, x.float())
+    # sols_round = RoundSTE.apply(sols)
     loss_CV = Loss_CV(mip, sols, args.type)
     return loss_ddpm, loss_CV, loss_decoder, sols
 
 
 def train_one_epoch(model, optimizer, scheduler, data_loader, device, epoch, checkpoint=None, tb_writer=None):
     if checkpoint is not None:
-            check = torch.load(checkpoint)
-            epoch = check['epoch']
-            optimizer.load_state_dict(check['optimizer_state_dict'])
-            scheduler.load_state_dict(check['scheduler_state_dict'])
+        check = torch.load(checkpoint)
+        epoch = check['epoch']
+        optimizer.load_state_dict(check['optimizer_state_dict'])
+        scheduler.load_state_dict(check['scheduler_state_dict'])
     else:
         check = None
     set_model_to_mode(model, 'train')
@@ -97,7 +101,8 @@ def train_one_epoch(model, optimizer, scheduler, data_loader, device, epoch, che
             loss = loss_ddpm + loss_CV
         else:
             loss_ddpm, loss_CV, loss_decoder, sols = forward_by_cisp(mip, x, model, check)
-            loss = loss_ddpm + loss_CV + loss_decoder
+            # 必须decoder * 10
+            loss = loss_ddpm + loss_CV + loss_decoder * 20
         loss.backward()
         mean_loss_ddpm = (mean_loss_ddpm * iteration + loss_ddpm.detach()) / (iteration + 1)
         mean_loss_CV = (mean_loss_CV * iteration + loss_CV.detach()) / (iteration + 1)
@@ -180,7 +185,7 @@ def main(args, logger):
         decoder = SolutionDecoder(attn_dim=128, n_heads=4, n_layers=2, attn_mask=None)
         decoder.to(device)
         optimizer = Adam([
-            {'params': ddpm.parameters(), 'lr': 0.0008},
+            {'params': ddpm.parameters(), 'lr': 0.0005},
             {'params': decoder.parameters(), 'lr': 0.0005}
         ])
         model = [ddpm, decoder]
@@ -193,7 +198,8 @@ def main(args, logger):
     best_val_loss = float('inf')
     optimizer.zero_grad()
     for epoch in range(epochs):
-        mean_loss, mean_loss_CV = train_one_epoch(model, optimizer, scheduler, train_loader, device, epoch, checkpoint=None)
+        mean_loss, mean_loss_CV = train_one_epoch(model, optimizer, scheduler, train_loader, device, epoch,
+                                                  checkpoint=None)
         logger.logger.info('%d epoch train mean loss: %.4f CV_loss: %.4f\n' % (epoch, mean_loss, mean_loss_CV))
 
         val_loss = evaluate(model, val_loader, epoch)
@@ -240,7 +246,7 @@ if __name__ == '__main__':
     total_size = len(graphSet)
     train_size = int(total_size * 0.9)
     val_size = total_size - train_size
-    train_set, val_set = random_split(graphSet, [train_size, val_size])
+    train_set, val_set = random_split(graphSet, [train_size, val_size], generator=torch.Generator().manual_seed(2024))
     train_loader = torch_geometric.data.DataLoader(train_set, batch_size=args.batch, shuffle=True)
     val_loader = torch_geometric.data.DataLoader(val_set, batch_size=args.batch, shuffle=False)
 
@@ -251,5 +257,5 @@ if __name__ == '__main__':
     vae = CVAE(embedding=True)
     vae.to(device)
     # vae.load_state_dict(torch.load(f'./model/{args.type}/cvae_embedding_pre/checkpoint-99.pth')['model_state_dict'])
-    logger = data_utils.Logger()
+    logger = data_utils.Logger(args)
     main(args, logger)

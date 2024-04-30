@@ -7,6 +7,7 @@ import numpy as np
 import math
 from utils import default, extract_into_tensor, make_beta_schedule, noise_like, to_torch
 from utils import make_ddim_timesteps, make_ddim_sampling_parameters
+from utils import RoundSTE
 from modules import ResidualAttentionBlock
 
 
@@ -340,6 +341,7 @@ class DDPMSampler(torch.nn.Module):
         x = torch.randn_like(self.conditions)
         # x = torch.randn(self.batch_size, self.var_num, self.var_dim, device=self.device)
         for i in reversed(range(0, self.num_timesteps)):
+            print(f'第{i}轮')
             x = self.ip_guided_p_sample(x, torch.full((self.batch_size,), i, device=self.device, dtype=torch.long), A,
                                         b, c)
         return x
@@ -371,7 +373,7 @@ class DDPMSampler(torch.nn.Module):
         # print(loss.item())
         return model_mean + nonzero_mask * std * noise
 
-    def p_sample(self, x, t,  repeat_noise=False):
+    def p_sample(self, x, t, repeat_noise=False):
         model_mean, _, model_log_variance = self.p_mean_variance(x=x, t=t)
         noise = noise_like(x.shape, self.device, repeat_noise)
         # no noise when t == 0
@@ -542,15 +544,15 @@ class DDIMSampler(torch.nn.Module):
 
         pred_x = pred_x.view(self.conditions.shape[0], -1, 1)
         pred_x_reshape = pred_x.view(-1)
+        # pred_x_reshape = RoundSTE.apply(pred_x_reshape)
 
         Ax_minus_b = torch.sparse.mm(A, pred_x_reshape.unsqueeze(1)).squeeze(1) - b
         violates = torch.max(Ax_minus_b, torch.tensor(0)).sum()
-
         obj = (pred_x_reshape.squeeze() @ c).sum()
 
         loss = (1 - self.obj_guided_coef) * violates + self.obj_guided_coef * obj
         x_t_gradients = torch.autograd.grad(loss, x_t, retain_graph=True)[0]
-        print(f'loss: {loss}, obj:{obj}, violates:{violates}')
+        print(f'第{t}轮：loss: {loss}, obj:{obj}, violates:{violates}')
 
         noise = sigma_t * noise_like(x.shape, self.device, repeat_noise) * temperature
 

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" autoUpload="Always" serverName="ljj@a534.ink19.cn:22 password (1)" remoteFilesAllowedToDisappearOnAutoupload="false">
+  <component name="PublishConfigData" autoUpload="Always" serverName="ljj@a534.ink19.cn:22 password (2)" remoteFilesAllowedToDisappearOnAutoupload="false">
     <serverData>
-      <paths name="ljj@a534.ink19.cn:22 password (1)">
+      <paths name="ljj@a534.ink19.cn:22 password (2)">
         <serverdata>
           <mappings>
             <mapping deploy="/home/ljj/tmp/pycharm_project_586" local="$PROJECT_DIR$" />

@@ -74,6 +74,16 @@ def getSolsBySCIP(insFile, m, settings):
     return sol_data
 
 
+def get_obj_v(A, b, c, zi, x):
+    # x : tensor
+    x = x.view(zi.shape[0], -1, 1).float()
+    pred_x_reshape = x.view(-1)
+    Ax_minus_b = torch.sparse.mm(A, pred_x_reshape.unsqueeze(1)).squeeze(1) - b
+    violates = torch.max(Ax_minus_b, torch.tensor(0)).sum()
+    obj_value = (pred_x_reshape.squeeze() @ c).sum()
+    return obj_value, violates
+
+
 if __name__ == '__main__':
     torch.cuda.is_available = lambda: False
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -100,12 +110,12 @@ if __name__ == '__main__':
     }
 
     ddim_setting = {
-        's': 20,
+        's': 20000,
         'gamma': 0.7
     }
     samplerType = args.sampler
 
-    ModelPath = f'./model/{args.type}/best_checkpoint_vae_False.pth'
+    ModelPath = f'./model/{args.type}/best_checkpoint_vae_False3.pth'
     cispPath = f'./model/{args.type}/cisp_pre/best_checkpoint.pth'
     vaePath = f'./model/{args.type}/cvae_pre/checkpoint-80.pth'
 
@@ -114,7 +124,7 @@ if __name__ == '__main__':
     cisp = cisp.CISP()
     cisp.eval()
     ddpm = DDPMTrainer(attn_dim=128, n_heads=4, n_layers=1, device=device)
-    # ddpm.load_state_dict(torch.load(ModelPath, map_location=device)['ddpm_state_dict'])
+    ddpm.load_state_dict(torch.load(ModelPath, map_location=device)['ddpm_state_dict'])
     solutionDecoder = SolutionDecoder(attn_dim=128, n_heads=4, n_layers=2, attn_mask=None)
     solutionDecoder.eval()
     if args.vae is not True:
@@ -132,7 +142,7 @@ if __name__ == '__main__':
         sampler = DDPMSampler(ddpm, gradient_scale=ddpm_setting['s'], obj_guided_coef=ddpm_setting['gamma']
                               , decoder=decoder, device=device)
     elif samplerType == 'DDIM':
-        sampler = DDIMSampler(ddpm, gradient_scale=ddim_setting['s'], obj_guided_coef=ddpm_setting['gamma']
+        sampler = DDIMSampler(ddpm, gradient_scale=ddim_setting['s'], obj_guided_coef=ddim_setting['gamma']
                               , decoder=decoder, device=device)
     else:
         raise ValueError
@@ -141,7 +151,7 @@ if __name__ == '__main__':
     sols = []
     objs = []
 
-    logger = data_utils.Logger()
+    logger = data_utils.Logger(args, 'predict')
     insfile = f'./instance/{status}/{args.type}'
     filenames = os.listdir(insfile)
     feasible = 0
@@ -159,12 +169,16 @@ if __name__ == '__main__':
             logger.logger.info(f'{filename} is starting, best_obj:{best_obj}')
             A, b, c = mip.getCoff()
             n_int_var = mip.n_int_vars
+
             tensor_x = torch.Tensor(best_x).long()
             zx, _ = cisp.encode_solution(tensor_x, n_int_var)
+            t = torch.Tensor([999]).to(device).long()
+            # sampler.initial_noise = ddpm.q_sample(zx, t=t)
             if args.vae is not True:
                 zi, key = cisp.encode_mip(mip, n_int_var)
-                # zx_pred, i = sampler.ip_guided_sample(zi, key, A, b, c)
-                zx_pred, i = sampler.sample(zi, key)
+                sol_zx = decoder.apply_model(zi, zx, key)
+                zx_pred, i = sampler.ip_guided_sample(zi, key, A, b, c)
+                # zx_pred, i = sampler.sample(zi, key)
                 sol_sigmoid = decoder.apply_model(zi, zx_pred, key)
             else:
                 zi, key = vae.encode_mip(mip, n_int_var)

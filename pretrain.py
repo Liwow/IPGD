@@ -20,7 +20,7 @@ from tqdm import tqdm
 # torch.cuda.is_available = lambda: False
 
 
-def loss_fun(BCE, KLD, epoch, w_type='2linear'):
+def loss_fun(BCE, KLD, epoch, w_type=None):
     k = 6
     x = (epoch + 1 / 100) * 2 - 1  # 归一化并平移到(-1, 1]
     if w_type == 'nonlinear':
@@ -34,7 +34,7 @@ def loss_fun(BCE, KLD, epoch, w_type='2linear'):
 
 
 def lr_lambda(epoch):
-    return 0.9 ** ((epoch + 1) // 15)
+    return 0.9 ** ((epoch + 1) // 50)
 
 
 def train_one_epoch(model, optimizer, data_loader, device, epoch, tb_writer=None):
@@ -100,7 +100,7 @@ def evaluate(model, data_loader, epoch, device):
 
             elif type(model) == CVAE:
                 recon_x, mu, logvar, BCE, KLD = model(x, mip)
-                loss = BCE + KLD
+                loss = BCE + 0 * KLD
                 total_BCE += BCE.item()
             else:
                 raise ValueError
@@ -120,8 +120,8 @@ def main(args, logger):
     else:
         raise ValueError
     model.to(device)
-    optimizer = AdamW(model.parameters(), lr=0.0005)
-    epochs = 100
+    optimizer = AdamW(model.parameters(), lr=0.005)
+    epochs = 800
     scheduler = LambdaLR(optimizer, lr_lambda)
     # tb_writer = SummaryWriter(log_dir=args.log_dir)
     logger.logger.info(f'{args.type} start training {args.model}......\n')
@@ -162,8 +162,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--save_epoch', type=float, default=20)
     parser.add_argument('--log_dir', type=str, default='./Logs/summary/pre')
-    parser.add_argument('--type', type=str, default="CA")
-    parser.add_argument('--model', type=str, default="cvae", help='choose cvae or cisp to encode')
+    parser.add_argument('--type', type=str, default="SC")
+    parser.add_argument('--model', type=str, default="cisp", help='choose cvae or cisp to encode')
     args = parser.parse_args()
     m = args.model
     emb = True
@@ -184,9 +184,9 @@ if __name__ == '__main__':
     train_size = int(total_size * 0.9)
     val_size = total_size - train_size
     train_set, val_set = random_split(graphSet, [train_size, val_size],
-                                      generator=torch.Generator().manual_seed(2024))
+                                      generator=torch.Generator().manual_seed(1998))
     train_loader = torch_geometric.data.DataLoader(train_set, batch_size=4, shuffle=True)
     val_loader = torch_geometric.data.DataLoader(val_set, batch_size=4, shuffle=False)
 
-    logger = data_utils.Logger()
+    logger = data_utils.Logger(args, 'pretrain')
     main(args, logger)

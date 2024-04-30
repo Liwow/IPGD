@@ -506,3 +506,13 @@ def normTorch(x):
     x = x / diff
     x = torch.clamp(x, 1e-5, 1)
     return x
+
+
+class RoundSTE(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, input):
+        return torch.round(input)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        return grad_output

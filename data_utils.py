@@ -76,12 +76,17 @@ def getSolByObj(sols, is_min_obj):
 
 
 class Logger:
-    def __init__(self, mode='w'):
+    def __init__(self, args, user='train', mode='w'):
         # 第一步，创建一个logger
         self.logger = logging.getLogger()
         self.logger.setLevel(logging.INFO)  # Log等级总开关
         # 第二步，创建一个handler，用于写入日志文件
-        rq = time.strftime('%Y%m%d%H%M', time.localtime(time.time()))
+        if user == 'train':
+            rq = time.strftime('%Y%m%d%H%M', time.localtime(time.time()))+f'{args.type}_ddpm_{args.vae}'
+        elif user == 'pretrain':
+            rq = time.strftime('%Y%m%d%H%M', time.localtime(time.time())) + f'{args.type}_{args.model}'
+        else:
+            rq = time.strftime('%Y%m%d%H%M', time.localtime(time.time())) + f'{args.type}'
         log_path = os.getcwd() + '/Logs/'
         log_name = log_path + rq + '.log'
         logfile = log_name
