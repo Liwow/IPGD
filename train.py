@@ -179,18 +179,19 @@ def main(args, logger):
     # if not os.path.isdir(modelPath):
     #     checkpoint = None
     #     logger.logger.info('No such checkpoint!')
-    ddpm = diffusion.DDPMTrainer(attn_dim=128, n_heads=4, n_layers=1, device=device)
+    ddpm = diffusion.DDPMTrainer(attn_dim=128, n_heads=4, n_layers=1, device=device,
+                                 parameterization=f'{args.p}')
     ddpm.to(device)
     if not args.vae:
         decoder = SolutionDecoder(attn_dim=128, n_heads=4, n_layers=2, attn_mask=None)
         decoder.to(device)
         optimizer = Adam([
-            {'params': ddpm.parameters(), 'lr': 0.0005},
+            {'params': ddpm.parameters(), 'lr': 0.0008},
             {'params': decoder.parameters(), 'lr': 0.0005}
         ])
         model = [ddpm, decoder]
     else:
-        optimizer = Adam(ddpm.parameters(), 0.0005)
+        optimizer = Adam(ddpm.parameters(), 0.0008)
         model = ddpm
     epochs = 100
     scheduler = LambdaLR(optimizer, lr_lambda)
@@ -239,6 +240,7 @@ if __name__ == '__main__':
     parser.add_argument('--type', type=str, default="CA")
     parser.add_argument('--vae', type=bool, default=False)
     parser.add_argument('--batch', type=int, default=4)
+    parser.add_argument('--p', type=str, default='x0', help='whether eps or x0 the ddpm predict')
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     args = parser.parse_args()
 
@@ -256,6 +258,6 @@ if __name__ == '__main__':
     cisp.load_state_dict(torch.load(f'./model/{args.type}/cisp_pre/best_checkpoint.pth')['model_state_dict'])
     vae = CVAE(embedding=True)
     vae.to(device)
-    # vae.load_state_dict(torch.load(f'./model/{args.type}/cvae_embedding_pre/checkpoint-99.pth')['model_state_dict'])
+    vae.load_state_dict(torch.load(f'./model/{args.type}/cvae_embedding_pre/best_checkpoint.pth')['model_state_dict'])
     logger = data_utils.Logger(args)
     main(args, logger)

@@ -495,6 +495,11 @@ def get_a_new2(ins_name):
     return A, v_map, v_nodes, c_nodes, b_vars, n_int_vars, int_indices
 
 
+def to_norm(tensor):
+    mean = tensor.mean(dim=1, keepdim=True)
+    std = tensor.std(dim=1, keepdim=True)
+    return (tensor - mean) / std
+
 def normTorch(x):
     maxs = torch.max(x, 0)[0]
     mins = torch.min(x, 0)[0]

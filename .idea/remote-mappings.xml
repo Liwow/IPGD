@@ -10,6 +10,13 @@
             </list>
           </settings>
         </remote-mappings>
+        <remote-mappings server-id="python@sftp://ljj@a534.ink19.cn:22/home/ljj/anaconda3/envs/mip/bin/python3.10">
+          <settings>
+            <list>
+              <mapping local-root="$PROJECT_DIR$" remote-root="/home/ljj/home/ljj/tmp/pycharm_project_586" />
+            </list>
+          </settings>
+        </remote-mappings>
       </list>
     </list>
   </component>

@@ -82,7 +82,7 @@ class Logger:
         self.logger.setLevel(logging.INFO)  # Log等级总开关
         # 第二步，创建一个handler，用于写入日志文件
         if user == 'train':
-            rq = time.strftime('%Y%m%d%H%M', time.localtime(time.time()))+f'{args.type}_ddpm_{args.vae}'
+            rq = time.strftime('%Y%m%d%H%M', time.localtime(time.time()))+f'{args.type}_ddpm_{args.p}_{args.vae}'
         elif user == 'pretrain':
             rq = time.strftime('%Y%m%d%H%M', time.localtime(time.time())) + f'{args.type}_{args.model}'
         else:

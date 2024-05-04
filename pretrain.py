@@ -28,13 +28,13 @@ def loss_fun(BCE, KLD, epoch, w_type=None):
     elif w_type == 'linear':
         weight = 0.1 + (1.5 - 0.1) * (epoch + 1 / 100)
     else:
-        weight = 0
+        weight = 1e-6
 
     return BCE + weight * KLD
 
 
 def lr_lambda(epoch):
-    return 0.9 ** ((epoch + 1) // 50)
+    return 0.9 ** ((epoch + 1) // 15)
 
 
 def train_one_epoch(model, optimizer, data_loader, device, epoch, tb_writer=None):
@@ -100,7 +100,7 @@ def evaluate(model, data_loader, epoch, device):
 
             elif type(model) == CVAE:
                 recon_x, mu, logvar, BCE, KLD = model(x, mip)
-                loss = BCE + 0 * KLD
+                loss = BCE + 1e-6 * KLD
                 total_BCE += BCE.item()
             else:
                 raise ValueError
@@ -120,8 +120,8 @@ def main(args, logger):
     else:
         raise ValueError
     model.to(device)
-    optimizer = AdamW(model.parameters(), lr=0.005)
-    epochs = 800
+    optimizer = AdamW(model.parameters(), lr=0.0005)
+    epochs = 100
     scheduler = LambdaLR(optimizer, lr_lambda)
     # tb_writer = SummaryWriter(log_dir=args.log_dir)
     logger.logger.info(f'{args.type} start training {args.model}......\n')
@@ -162,8 +162,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--save_epoch', type=float, default=20)
     parser.add_argument('--log_dir', type=str, default='./Logs/summary/pre')
-    parser.add_argument('--type', type=str, default="SC")
-    parser.add_argument('--model', type=str, default="cisp", help='choose cvae or cisp to encode')
+    parser.add_argument('--type', type=str, default="CA")
+    parser.add_argument('--model', type=str, default="cvae", help='choose cvae or cisp to encode')
     args = parser.parse_args()
     m = args.model
     emb = True

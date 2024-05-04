@@ -95,6 +95,7 @@ if __name__ == '__main__':
     parser.add_argument('--threads', type=int, default=1)
     parser.add_argument('--vae', type=bool, default=False)
     parser.add_argument('--type', type=str, default='CA')
+    parser.add_argument('--p', type=str, default='x0', help='whether eps or x0 the ddpm predict')
     args = parser.parse_args()
     status = 'train'
     SETTINGS = {
@@ -110,20 +111,20 @@ if __name__ == '__main__':
     }
 
     ddim_setting = {
-        's': 20000,
-        'gamma': 0.7
+        's': 10000,
+        'gamma': 1e-4
     }
     samplerType = args.sampler
 
     ModelPath = f'./model/{args.type}/best_checkpoint_vae_False3.pth'
     cispPath = f'./model/{args.type}/cisp_pre/best_checkpoint.pth'
-    vaePath = f'./model/{args.type}/cvae_pre/checkpoint-80.pth'
+    vaePath = f'./model/{args.type}/cvae_pre/best_checkpoint.pth'
 
     vae = CVAE(embedding=True)
     vae.eval()
     cisp = cisp.CISP()
     cisp.eval()
-    ddpm = DDPMTrainer(attn_dim=128, n_heads=4, n_layers=1, device=device)
+    ddpm = DDPMTrainer(attn_dim=128, n_heads=4, n_layers=1, device=device, parameterization=f'{args.p}')
     ddpm.load_state_dict(torch.load(ModelPath, map_location=device)['ddpm_state_dict'])
     solutionDecoder = SolutionDecoder(attn_dim=128, n_heads=4, n_layers=2, attn_mask=None)
     solutionDecoder.eval()
@@ -166,7 +167,12 @@ if __name__ == '__main__':
             sol_data = getSolsBySCIP(filename, m, SETTINGS)
             best_x = sol_data['sols']
             best_obj = sol_data['objs']
+
             logger.logger.info(f'{filename} is starting, best_obj:{best_obj}')
+            hyper_s = ddim_setting['s'] if args.sampler == 'DDIM' else ddpm_setting['s']
+            hyper_gamma = ddim_setting['gamma'] if args.sampler == 'DDIM' else ddpm_setting['gamma']
+            logger.logger.info(f'sampler:{args.sampler}; s:{hyper_s}; gamma:{hyper_gamma}')
+
             A, b, c = mip.getCoff()
             n_int_var = mip.n_int_vars
 
@@ -177,6 +183,7 @@ if __name__ == '__main__':
             if args.vae is not True:
                 zi, key = cisp.encode_mip(mip, n_int_var)
                 sol_zx = decoder.apply_model(zi, zx, key)
+
                 zx_pred, i = sampler.ip_guided_sample(zi, key, A, b, c)
                 # zx_pred, i = sampler.sample(zi, key)
                 sol_sigmoid = decoder.apply_model(zi, zx_pred, key)

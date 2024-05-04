@@ -3,7 +3,7 @@
   <component name="Black">
     <option name="sdkName" value="mip" />
   </component>
-  <component name="ProjectRootManager" version="2" project-jdk-name="mip" project-jdk-type="Python SDK" />
+  <component name="ProjectRootManager" version="2" project-jdk-name="Remote Python 3.10.14 (sftp://ljj@a534.ink19.cn:22/home/ljj/anaconda3/envs/mip/bin/python3.10)" project-jdk-type="Python SDK" />
   <component name="PythonCompatibilityInspectionAdvertiser">
     <option name="version" value="3" />
   </component>

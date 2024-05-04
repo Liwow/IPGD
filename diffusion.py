@@ -5,6 +5,8 @@ import torch
 import torch.nn
 import numpy as np
 import math
+
+import utils
 from utils import default, extract_into_tensor, make_beta_schedule, noise_like, to_torch
 from utils import make_ddim_timesteps, make_ddim_sampling_parameters
 from utils import RoundSTE
@@ -209,12 +211,11 @@ class DDPMTrainer(torch.nn.Module):
         model_out = self.predict_model(x_noisy, t, condition, key_padding_mask)
         if self.parameterization == "eps":
             target = noise
-            # pred_x_start = self.predict_start_from_noise(x_noisy, t, noise)
-            pred_x_start = model_out
+            pred_x_start = self.predict_start_from_noise(x_noisy, t, model_out)
         elif self.parameterization == "x0":
             target = x_start
             pred_x_start = model_out
-        loss = self.get_loss(pred_x_start.squeeze(), target.squeeze(), key_padding_mask, mean=True)
+        loss = self.get_loss(model_out.squeeze(), target.squeeze(), key_padding_mask, mean=True)
         return pred_x_start, loss
 
     def get_loss(self, pred, target, key_padding_mask, mean=True):
@@ -544,21 +545,26 @@ class DDIMSampler(torch.nn.Module):
 
         pred_x = pred_x.view(self.conditions.shape[0], -1, 1)
         pred_x_reshape = pred_x.view(-1)
-        # pred_x_reshape = RoundSTE.apply(pred_x_reshape)
-
         Ax_minus_b = torch.sparse.mm(A, pred_x_reshape.unsqueeze(1)).squeeze(1) - b
         violates = torch.max(Ax_minus_b, torch.tensor(0)).sum()
         obj = (pred_x_reshape.squeeze() @ c).sum()
 
-        loss = (1 - self.obj_guided_coef) * violates + self.obj_guided_coef * obj
-        x_t_gradients = torch.autograd.grad(loss, x_t, retain_graph=True)[0]
-        print(f'第{t}轮：loss: {loss}, obj:{obj}, violates:{violates}')
+        pred_x_round = RoundSTE.apply(pred_x_reshape)
+        Ax_minus_b_round = torch.sparse.mm(A, pred_x_round.unsqueeze(1)).squeeze(1) - b
+        violates_round = torch.max(Ax_minus_b_round, torch.tensor(0)).sum()
+        obj_round = (pred_x_round.squeeze() @ c).sum()
 
-        noise = sigma_t * noise_like(x.shape, self.device, repeat_noise) * temperature
+        loss = (1 - self.obj_guided_coef) * 10 * violates - self.obj_guided_coef * obj
+        x_t_gradients = torch.autograd.grad(loss, x_t, retain_graph=True)[0]
+
+        print(f'第{t}轮：loss: {loss}, obj:{obj_round}, violates:{violates_round}')
+
+        # sigma_t_mu = (1.+sigma_t ** 2).sqrt()
+        sigma_t_mu = sigma_t
+        noise = sigma_t_mu * noise_like(x.shape, self.device, repeat_noise) * temperature
 
         # dir_xt_no = (1. - a_prev - sigma_t ** 2).sqrt() * e_t
         # x_prev_no = a_prev.sqrt() * pred_x0 + dir_xt_no + noise
-
         e_t_no = e_t - self.gradient_scale * x_t_gradients
         e_t = e_t_no
         dir_xt = (1. - a_prev - sigma_t ** 2).sqrt() * e_t
